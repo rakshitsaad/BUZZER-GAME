@@ -367,9 +367,7 @@
           <button data-filter="5" class="lb-filter-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-neutral-800 text-neutral-400 hover:text-white">5s</button>
           <button data-filter="10" class="lb-filter-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-neutral-800 text-neutral-400 hover:text-white">10s</button>
         </div>
-        <button id="clearLeaderboardBtn" class="text-[11px] font-semibold text-rose-400 hover:text-rose-300 hover:underline">
-          Clear Data
-        </button>
+        <span id="leaderboardStatus" class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Loading…</span>
       </div>
 
       <!-- Scrollable Leaderboard Table -->
@@ -448,7 +446,7 @@
         </form>
 
         <p class="text-[11px] text-neutral-500 text-center mt-4">
-          Saved locally on your device. You can update or switch players anytime.
+          Your scores appear on the global leaderboard for all players. You can update or switch players anytime.
         </p>
       </div>
     </div>
@@ -658,16 +656,14 @@
     let activePlayer = null;
 
     // Storage Keys
-    const STORAGE_KEY = 'blind_seconds_leaderboard_v2';
+    const STORAGE_KEY = 'blind_seconds_leaderboard_shared_v1';
+    const PENDING_STORAGE_KEY = 'blind_seconds_pending_scores_v1';
+    const RECENT_STORAGE_KEY = 'blind_seconds_recent_scores_v1';
+    const RECENT_SCORE_WINDOW_MS = 10 * 60 * 1000;
     const USER_STORAGE_KEY = 'blind_seconds_registered_user_v1';
 
-    // Default Challenger entries with Enrollment Numbers
-    const DEFAULT_LEADERBOARD = [
-      { id: '1', name: 'Chronos', enrollment: '2023TIM01', target: 5.0, stopped: 5.008, delta: 0.008, absDelta: 0.008, date: 'Demo' },
-      { id: '2', name: 'MindMaster', enrollment: '2023PSY44', target: 5.0, stopped: 4.978, delta: -0.022, absDelta: 0.022, date: 'Demo' },
-      { id: '3', name: 'ZenGuru', enrollment: '2022ZEN89', target: 3.0, stopped: 3.031, delta: 0.031, absDelta: 0.031, date: 'Demo' },
-      { id: '4', name: 'ApexTimer', enrollment: '2024APX12', target: 10.0, stopped: 9.945, delta: -0.055, absDelta: 0.055, date: 'Demo' }
-    ];
+    // Shared leaderboard API (Vercel serverless function)
+    const SCORES_API = '/api/scores';
 
     // DOM Elements
     const buzzerBtn = document.getElementById('buzzerButton');
@@ -708,7 +704,7 @@
     const closeLeaderboardBtn = document.getElementById('closeLeaderboardBtn');
     const closeLeaderboardBtn2 = document.getElementById('closeLeaderboardBtn2');
     const leaderboardRowsContainer = document.getElementById('leaderboardRowsContainer');
-    const clearLeaderboardBtn = document.getElementById('clearLeaderboardBtn');
+    const leaderboardStatus = document.getElementById('leaderboardStatus');
     const lbFilterBtns = document.querySelectorAll('.lb-filter-btn');
 
     const statBestScore = document.getElementById('statBestScore');
@@ -801,32 +797,107 @@
     });
 
     /* ==========================================================
-       Leaderboard System (LocalStorage)
+       Leaderboard System (shared via /api/scores, cached in LocalStorage)
        ========================================================== */
-    function getLeaderboard() {
+    function readStoredList(key) {
       try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (!stored) {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_LEADERBOARD));
-          return [...DEFAULT_LEADERBOARD];
-        }
-        return JSON.parse(stored);
+        const stored = JSON.parse(localStorage.getItem(key));
+        return Array.isArray(stored) ? stored : [];
       } catch (e) {
-        return [...DEFAULT_LEADERBOARD];
+        return [];
       }
     }
 
-    function saveLeaderboard(data) {
+    function writeStoredList(key, data) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        localStorage.setItem(key, JSON.stringify(data));
       } catch (e) {
         console.warn('Could not save to localStorage', e);
       }
     }
 
+    // Last copy of the shared board, plus this device's scores not yet sent
+    function getLeaderboard() {
+      return [...readStoredList(STORAGE_KEY), ...readStoredList(PENDING_STORAGE_KEY)];
+    }
+
+    function saveLeaderboard(data) {
+      writeStoredList(STORAGE_KEY, data);
+    }
+
+    function setLeaderboardStatus(text, colorClass) {
+      leaderboardStatus.textContent = text;
+      leaderboardStatus.className = `text-[10px] font-semibold uppercase tracking-wider ${colorClass}`;
+    }
+
+    async function postScore(entry) {
+      const res = await fetch(SCORES_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry)
+      });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      const data = await res.json();
+      writeStoredList(RECENT_STORAGE_KEY, [...readStoredList(RECENT_STORAGE_KEY), data.entry]);
+      saveLeaderboard([...readStoredList(STORAGE_KEY), data.entry]);
+    }
+
+    // The shared board can lag a little behind writes, so keep this device's
+    // recently saved scores visible until the server copy includes them.
+    function mergeRecentScores(serverEntries) {
+      const serverIds = new Set(serverEntries.map(e => e.id));
+      const recent = readStoredList(RECENT_STORAGE_KEY)
+        .filter(e => !serverIds.has(e.id) && Date.now() - e.ts < RECENT_SCORE_WINDOW_MS);
+      writeStoredList(RECENT_STORAGE_KEY, recent);
+      return [...serverEntries, ...recent];
+    }
+
+    // Send queued scores one at a time; a single shared run avoids duplicate posts
+    let flushInFlight = null;
+    function flushPendingScores() {
+      if (!flushInFlight) {
+        flushInFlight = (async () => {
+          try {
+            let next;
+            while ((next = readStoredList(PENDING_STORAGE_KEY)[0])) {
+              await postScore(next);
+              writeStoredList(PENDING_STORAGE_KEY, readStoredList(PENDING_STORAGE_KEY).filter(e => e.id !== next.id));
+            }
+          } catch (e) {
+            console.warn('Score not sent yet, will retry later', e);
+          } finally {
+            flushInFlight = null;
+          }
+        })();
+      }
+      return flushInFlight;
+    }
+
+    async function refreshLeaderboard() {
+      renderLeaderboard();
+      setLeaderboardStatus('Syncing…', 'text-neutral-500');
+      try {
+        await flushPendingScores();
+        const res = await fetch(SCORES_API, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`Load failed (${res.status})`);
+        const data = await res.json();
+        saveLeaderboard(mergeRecentScores(data.entries));
+        setLeaderboardStatus('● Live · All players', 'text-emerald-400');
+      } catch (e) {
+        console.warn('Could not reach shared leaderboard', e);
+        setLeaderboardStatus('Offline · Saved copy', 'text-rose-400');
+      }
+      renderLeaderboard();
+    }
+
+    function formatEntryDate(entry) {
+      if (entry.ts) return new Date(entry.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return entry.date || 'Recent';
+    }
+
     function renderLeaderboard() {
       const records = getLeaderboard();
-      const filtered = currentFilter === 'all' 
+      const filtered = currentFilter === 'all'
         ? records 
         : records.filter(r => Math.abs(r.target - parseFloat(currentFilter)) < 0.01);
 
@@ -859,14 +930,18 @@
           ? 'text-emerald-400 font-bold' 
           : 'text-neutral-300';
 
+        const isMe = activePlayer && entry.enrollment === activePlayer.enrollment && entry.name === activePlayer.name;
         const row = document.createElement('div');
-        row.className = "flex items-center justify-between p-2 rounded-xl bg-neutral-950/60 border border-neutral-800/60 hover:border-neutral-700 transition";
+        row.className = isMe
+          ? "flex items-center justify-between p-2 rounded-xl bg-amber-500/10 border border-amber-500/40 transition"
+          : "flex items-center justify-between p-2 rounded-xl bg-neutral-950/60 border border-neutral-800/60 hover:border-neutral-700 transition";
         row.innerHTML = `
           <div class="flex items-center space-x-2.5">
             ${rankBadge}
             <div>
               <div class="text-xs font-bold text-white flex items-center gap-1.5 flex-wrap">
                 <span>${escapeHtml(entry.name)}</span>
+                ${isMe ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500 text-black font-black uppercase">You</span>' : ''}
                 <span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-amber-300 font-digital font-semibold tracking-wide">ID: ${escapeHtml(entry.enrollment || 'N/A')}</span>
                 <span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-700 text-neutral-400 font-digital">${entry.target.toFixed(1)}s target</span>
               </div>
@@ -875,7 +950,7 @@
           </div>
           <div class="text-right ml-2 shrink-0">
             <div class="text-xs font-digital ${deltaColor}">${deltaFormatted}</div>
-            <div class="text-[9px] text-neutral-400 uppercase">${entry.date || 'Recent'}</div>
+            <div class="text-[9px] text-neutral-400 uppercase">${formatEntryDate(entry)}</div>
           </div>
         `;
         leaderboardRowsContainer.appendChild(row);
@@ -902,8 +977,8 @@
     });
 
     leaderboardBtn.addEventListener('click', () => {
-      renderLeaderboard();
       leaderboardModal.classList.remove('hidden');
+      refreshLeaderboard();
     });
 
     closeLeaderboardBtn.addEventListener('click', () => leaderboardModal.classList.add('hidden'));
@@ -912,18 +987,11 @@
       if (e.target === leaderboardModal) leaderboardModal.classList.add('hidden');
     });
 
-    clearLeaderboardBtn.addEventListener('click', () => {
-      if (confirm("Reset and clear leaderboard scores back to default?")) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_LEADERBOARD));
-        renderLeaderboard();
-      }
-    });
-
     // View leaderboard directly from card button
     if (viewLeaderboardFromCard) {
       viewLeaderboardFromCard.addEventListener('click', () => {
-        renderLeaderboard();
         leaderboardModal.classList.remove('hidden');
+        refreshLeaderboard();
       });
     }
 
@@ -934,20 +1002,22 @@
         return;
       }
 
-      const records = getLeaderboard();
       const newEntry = {
-        id: Date.now().toString(),
+        id: `local-${Date.now()}`,
         name: activePlayer.name,
         enrollment: activePlayer.enrollment,
         target: resultData.target,
         stopped: resultData.stopped,
         delta: resultData.delta,
         absDelta: resultData.absDelta,
-        date: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+        ts: Date.now()
       };
 
-      records.push(newEntry);
-      saveLeaderboard(records);
+      // Queue first so the score survives a failed request, then send it
+      writeStoredList(PENDING_STORAGE_KEY, [...readStoredList(PENDING_STORAGE_KEY), newEntry]);
+      flushPendingScores().then(() => {
+        if (!leaderboardModal.classList.contains('hidden')) renderLeaderboard();
+      });
     }
 
     /* ==========================================================
