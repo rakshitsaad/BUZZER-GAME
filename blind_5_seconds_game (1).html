@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blind 5 Seconds - Time Stopping Game</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700;800&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    .font-digital {
+      font-family: 'Chakra Petch', monospace;
+    }
+
+    /* 3D Realistic Arcade Red Buzzer Styles */
+    .buzzer-base {
+      background: radial-gradient(circle at 50% 30%, #374151 0%, #111827 75%, #030712 100%);
+      box-shadow: 
+        0 18px 40px -10px rgba(0, 0, 0, 0.9),
+        0 0 0 6px #1f2937,
+        0 0 0 10px #111827,
+        inset 0 4px 6px rgba(255, 255, 255, 0.15),
+        inset 0 -8px 16px rgba(0, 0, 0, 0.8);
+    }
+
+    .buzzer-btn {
+      position: relative;
+      background: radial-gradient(circle at 35% 30%, #ff4b4b 0%, #dc2626 40%, #991b1b 80%, #580a0a 100%);
+      box-shadow: 
+        0 14px 0 #7f1d1d,
+        0 18px 0 #450a0a,
+        0 24px 30px rgba(0, 0, 0, 0.75),
+        0 0 35px rgba(239, 68, 68, 0.45),
+        inset 0 4px 10px rgba(255, 255, 255, 0.4),
+        inset 0 -8px 12px rgba(0, 0, 0, 0.6);
+      transition: all 0.08s cubic-bezier(0.4, 0, 0.2, 1);
+      transform: translateY(0px);
+    }
+
+    .buzzer-btn:active, .buzzer-btn.pressed {
+      transform: translateY(12px);
+      box-shadow: 
+        0 2px 0 #7f1d1d,
+        0 4px 0 #450a0a,
+        0 8px 15px rgba(0, 0, 0, 0.8),
+        0 0 50px rgba(239, 68, 68, 0.8),
+        inset 0 2px 6px rgba(255, 255, 255, 0.3),
+        inset 0 -4px 8px rgba(0, 0, 0, 0.7);
+    }
+
+    .buzzer-btn.glow-pulse {
+      animation: buzzerPulse 1.2s infinite ease-in-out;
+    }
+
+    @keyframes buzzerPulse {
+      0%, 100% {
+        box-shadow: 
+          0 14px 0 #7f1d1d,
+          0 18px 0 #450a0a,
+          0 24px 30px rgba(0, 0, 0, 0.75),
+          0 0 30px rgba(239, 68, 68, 0.5),
+          inset 0 4px 10px rgba(255, 255, 255, 0.4);
+      }
+      50% {
+        box-shadow: 
+          0 14px 0 #991b1b,
+          0 18px 0 #450a0a,
+          0 26px 40px rgba(239, 68, 68, 0.6),
+          0 0 70px rgba(239, 68, 68, 0.9),
+          inset 0 6px 14px rgba(255, 255, 255, 0.65);
+      }
+    }
+
+    /* Ambient pulse for blind counting phase */
+    .heartbeat-dot {
+      animation: pulseLight 1s ease-in-out infinite;
+    }
+    @keyframes pulseLight {
+      0%, 100% { opacity: 0.2; transform: scale(0.9); }
+      50% { opacity: 0.85; transform: scale(1.15); }
+    }
+
+    /* Hypnotic Focus Radar & Wave Visualizer */
+    .sonar-ring {
+      animation: sonarWave 2.2s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+    }
+    .sonar-ring:nth-child(2) {
+      animation-delay: 0.7s;
+    }
+    .sonar-ring:nth-child(3) {
+      animation-delay: 1.4s;
+    }
+    @keyframes sonarWave {
+      0% {
+        transform: scale(0.6);
+        opacity: 0.8;
+      }
+      100% {
+        transform: scale(2.4);
+        opacity: 0;
+      }
+    }
+
+    .wave-bar {
+      animation: waveDance 1.2s ease-in-out infinite alternate;
+    }
+    .wave-bar:nth-child(2) { animation-delay: 0.15s; }
+    .wave-bar:nth-child(3) { animation-delay: 0.3s; }
+    .wave-bar:nth-child(4) { animation-delay: 0.45s; }
+    .wave-bar:nth-child(5) { animation-delay: 0.2s; }
+    .wave-bar:nth-child(6) { animation-delay: 0.35s; }
+    .wave-bar:nth-child(7) { animation-delay: 0.5s; }
+    @keyframes waveDance {
+      0% { height: 6px; opacity: 0.35; }
+      100% { height: 28px; opacity: 0.95; }
+    }
+  </style>
+</head>
+<body class="bg-neutral-950 text-white min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-red-500 selection:text-white">
+
+  <!-- Top Navigation & Header -->
+  <header class="w-full max-w-4xl mx-auto px-4 py-4 flex items-center justify-between z-10">
+    <div class="flex items-center space-x-2">
+      <div class="w-3.5 h-3.5 rounded-full bg-red-600 animate-ping"></div>
+      <h1 class="text-xl md:text-2xl font-black tracking-wider uppercase bg-gradient-to-r from-red-500 via-rose-400 to-amber-400 bg-clip-text text-transparent">
+        Blind <span id="headerTargetNum">5</span>s
+      </h1>
+    </div>
+
+    <!-- Active Player Badge & Controls -->
+    <div class="flex items-center space-x-2">
+      <!-- Active Registered Player Badge -->
+      <div id="playerBadge" class="hidden items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-900 border border-neutral-700 text-xs">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:gap-1.5 leading-tight">
+          <span id="badgePlayerName" class="font-bold text-white max-w-[90px] sm:max-w-[120px] truncate">Player</span>
+          <span id="badgeEnrollment" class="font-digital text-[10px] text-amber-400 font-semibold max-w-[80px] sm:max-w-[100px] truncate">#---</span>
+        </div>
+        <button id="switchUserBtn" title="Switch Player / Change Enrollment" class="ml-1 text-neutral-400 hover:text-rose-400 text-xs transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+        </button>
+      </div>
+
+      <button id="leaderboardBtn" aria-label="Open Leaderboard" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-neutral-900 border border-amber-500/30 hover:border-amber-400 text-amber-300 hover:text-amber-200 text-xs font-bold transition shadow-sm">
+        <span>🏆</span>
+        <span class="hidden sm:inline">Leaderboard</span>
+      </button>
+
+      <button id="soundToggleBtn" aria-label="Toggle Sound" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-300 hover:text-white text-xs font-semibold transition">
+        <svg id="soundOnIcon" class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
+        <svg id="soundOffIcon" class="w-4 h-4 text-rose-500 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path></svg>
+        <span id="soundText" class="hidden sm:inline">Sound ON</span>
+      </button>
+
+      <button id="helpBtn" aria-label="How to play" class="px-2.5 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-neutral-400 hover:text-white text-xs font-semibold transition">
+        ?
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Game Stage -->
+  <main class="w-full max-w-3xl mx-auto px-4 flex-1 flex flex-col items-center justify-center relative">
+
+    <!-- Target Selector Pill -->
+    <div id="targetSelectorContainer" class="flex items-center gap-1.5 p-1.5 rounded-full bg-neutral-900/90 border border-neutral-800 shadow-inner mb-4 transition-all">
+      <span class="text-xs uppercase tracking-wider text-neutral-400 font-bold px-3">Target</span>
+      <button data-target="3" class="target-btn px-3.5 py-1 text-xs font-bold rounded-full transition text-neutral-400 hover:text-white">3s</button>
+      <button data-target="5" class="target-btn active px-3.5 py-1 text-xs font-bold rounded-full transition bg-red-600 text-white shadow-md shadow-red-600/30">5s</button>
+      <button data-target="10" class="target-btn px-3.5 py-1 text-xs font-bold rounded-full transition text-neutral-400 hover:text-white">10s</button>
+      <button id="customTargetBtn" class="px-3.5 py-1 text-xs font-bold rounded-full transition text-neutral-400 hover:text-white flex items-center gap-1">Custom</button>
+    </div>
+
+    <!-- Status Message Screen (Visible in Idle/Running) -->
+    <div id="statusContainer" class="h-16 flex flex-col items-center justify-center text-center px-4 mb-1">
+      <div id="statusSub" class="text-xs md:text-sm font-semibold tracking-widest uppercase text-neutral-400">
+        Stopwatch Challenge
+      </div>
+      <div id="statusTitle" class="text-2xl md:text-3xl font-extrabold tracking-tight text-white mt-0.5">
+        Press The Red Buzzer To Start
+      </div>
+    </div>
+
+    <!-- Blind Focus Sensory Visualizer (Replaces Numeric Timer) -->
+    <div id="sensoryContainer" class="h-16 flex items-center justify-center mb-2 text-center w-full max-w-md">
+      <!-- Idle State Visualizer -->
+      <div id="idleVisual" class="bg-neutral-900/80 border border-neutral-800/80 px-6 py-2 rounded-2xl shadow-inner flex items-center gap-3">
+        <div class="w-2.5 h-2.5 rounded-full bg-neutral-500"></div>
+        <span class="text-xs uppercase font-bold tracking-widest text-neutral-400">Timer Is Blindfolded • Press Buzzer</span>
+      </div>
+
+      <!-- Active Running Sensory Focus Orb & Waveforms -->
+      <div id="runningVisual" class="hidden relative w-full flex items-center justify-center gap-4 bg-gradient-to-r from-neutral-950 via-neutral-900/90 to-neutral-950 border border-red-500/30 px-6 py-2 rounded-2xl shadow-[0_0_25px_rgba(239,68,68,0.15)]">
+        <!-- Sonar Radar Orb -->
+        <div class="relative w-8 h-8 flex items-center justify-center">
+          <div class="sonar-ring absolute w-7 h-7 rounded-full border border-red-500/60 pointer-events-none"></div>
+          <div class="sonar-ring absolute w-7 h-7 rounded-full border border-rose-400/50 pointer-events-none"></div>
+          <div class="w-3.5 h-3.5 rounded-full bg-gradient-to-tr from-red-600 to-rose-400 shadow-[0_0_12px_#ef4444] z-10"></div>
+        </div>
+
+        <div class="flex flex-col items-start text-left">
+          <div class="flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-red-400">
+            <span>Internal Clock Active</span>
+            <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>
+          </div>
+          <div class="text-[11px] font-semibold text-neutral-400 tracking-wide">
+            Count inside your head...
+          </div>
+        </div>
+
+        <!-- Hypnotic Rhythm Wave Bars (No Time Leak) -->
+        <div class="flex items-center gap-1 h-8 pl-2 border-l border-neutral-800">
+          <span class="wave-bar w-1 bg-red-500/80 rounded-full"></span>
+          <span class="wave-bar w-1 bg-rose-400/80 rounded-full"></span>
+          <span class="wave-bar w-1 bg-red-600/80 rounded-full"></span>
+          <span class="wave-bar w-1 bg-amber-400/80 rounded-full"></span>
+          <span class="wave-bar w-1 bg-red-500/80 rounded-full"></span>
+          <span class="wave-bar w-1 bg-rose-400/80 rounded-full"></span>
+          <span class="wave-bar w-1 bg-red-400/80 rounded-full"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESULT CARD: POSITIONED PROMINENTLY DIRECTLY ABOVE THE BUZZER -->
+    <div id="resultModal" class="w-full max-w-lg mb-4 bg-neutral-900/95 border border-red-500/30 rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-md hidden transition-all duration-300 transform scale-95 z-20">
+      <div class="flex items-center justify-between border-b border-neutral-800 pb-2.5">
+        <div>
+          <span id="resultRatingBadge" class="inline-block px-3 py-0.5 rounded-full text-xs font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
+            MIND BLOWING
+          </span>
+          <h2 id="resultRatingTitle" class="text-base sm:text-lg font-black mt-1 text-white">So Close!</h2>
+        </div>
+        <div class="text-right">
+          <span class="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold">Target</span>
+          <div id="resultTargetVal" class="text-sm font-digital font-bold text-neutral-200">5.000s</div>
+        </div>
+      </div>
+
+      <!-- Time comparison figures -->
+      <div class="grid grid-cols-2 gap-3 py-3 text-center">
+        <div class="bg-neutral-950/80 p-2.5 rounded-xl border border-neutral-800">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Stopped At</div>
+          <div id="resultActualTime" class="text-2xl sm:text-3xl font-black font-digital text-white mt-0.5">0.000s</div>
+        </div>
+        <div class="bg-neutral-950/80 p-2.5 rounded-xl border border-neutral-800">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Delta / Error</div>
+          <div id="resultDelta" class="text-2xl sm:text-3xl font-black font-digital text-emerald-400 mt-0.5">+0.000s</div>
+        </div>
+      </div>
+
+      <!-- Difference visualization timeline bar -->
+      <div class="py-1">
+        <div class="flex justify-between text-[10px] font-semibold text-neutral-400 mb-1">
+          <span>Early (-1.0s)</span>
+          <span class="text-amber-400 font-bold">Target Exact</span>
+          <span>Late (+1.0s)</span>
+        </div>
+        <div class="relative w-full h-2.5 bg-neutral-950 rounded-full overflow-hidden border border-neutral-800">
+          <div class="absolute top-0 bottom-0 left-1/2 w-0.5 bg-amber-400 z-10 -translate-x-1/2"></div>
+          <div class="absolute top-0 bottom-0 left-[45%] right-[45%] bg-amber-500/20 border-x border-amber-500/40"></div>
+          <div id="resultGaugeMarker" class="absolute top-0 bottom-0 w-2.5 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444] -translate-x-1/2 transition-all duration-700" style="left: 50%;"></div>
+        </div>
+      </div>
+
+      <!-- Auto-Saved Leaderboard Status & Share -->
+      <div id="saveScoreContainer" class="mt-3 pt-2.5 border-t border-neutral-800 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <div class="flex flex-col text-left">
+            <span class="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Saved to Leaderboard</span>
+            <span id="resultPlayerTag" class="text-xs font-semibold text-neutral-300 truncate max-w-[200px] sm:max-w-[280px]">Player (#ID)</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button id="viewLeaderboardFromCard" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-neutral-800 hover:bg-neutral-700 text-amber-300 border border-amber-500/30 transition flex items-center gap-1">
+            <span>🏆 View Rank</span>
+          </button>
+          <button id="shareScoreBtn" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition flex items-center gap-1">
+            <span id="shareBtnText">Share</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Buzzer Housing & The Tactile Red Button (Located below result) -->
+    <div class="relative flex items-center justify-center my-1 p-4 md:p-6">
+      <!-- Exterior base ring -->
+      <div class="buzzer-base w-60 h-60 sm:w-68 sm:h-68 md:w-72 md:h-72 rounded-full flex items-center justify-center relative">
+        
+        <!-- Subtle concentric accent ring -->
+        <div class="w-52 h-52 sm:w-60 sm:h-60 md:w-64 md:h-64 rounded-full border-2 border-dashed border-neutral-700/60 pointer-events-none absolute"></div>
+
+        <!-- The Big Red Tactile Button -->
+        <button id="buzzerButton" 
+                class="buzzer-btn w-44 h-44 sm:w-52 sm:h-52 md:w-56 md:h-56 rounded-full flex flex-col items-center justify-center text-white active:scale-95 focus:outline-none cursor-pointer select-none">
+          
+          <!-- Gloss highlight curve reflection -->
+          <div class="w-32 h-16 bg-gradient-to-b from-white/40 to-transparent rounded-full opacity-60 absolute top-3 blur-[1px] pointer-events-none"></div>
+
+          <!-- Label inside buzzer -->
+          <span id="buzzerLabel" class="relative z-10 text-2xl sm:text-3xl font-black tracking-widest uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] pointer-events-none">
+            START
+          </span>
+          <span id="buzzerHint" class="relative z-10 text-[10px] sm:text-xs font-bold tracking-wider uppercase text-red-200/90 mt-1 pointer-events-none drop-shadow">
+            [ SPACEBAR ]
+          </span>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- Recent Attempts Mini Log & Stats Strip -->
+    <div class="w-full max-w-lg mt-4 flex flex-col gap-2.5">
+      <div class="grid grid-cols-3 gap-2.5 text-center">
+        <div class="p-2.5 bg-neutral-900/50 border border-neutral-800/80 rounded-xl">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Best Score</div>
+          <div id="statBestScore" class="text-base sm:text-lg font-bold font-digital text-emerald-400 mt-0.5">--</div>
+        </div>
+        <div class="p-2.5 bg-neutral-900/50 border border-neutral-800/80 rounded-xl">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Total Rounds</div>
+          <div id="statRounds" class="text-base sm:text-lg font-bold font-digital text-white mt-0.5">0</div>
+        </div>
+        <div class="p-2.5 bg-neutral-900/50 border border-neutral-800/80 rounded-xl">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Avg Delta</div>
+          <div id="statAvgDelta" class="text-base sm:text-lg font-bold font-digital text-neutral-300 mt-0.5">--</div>
+        </div>
+      </div>
+
+      <!-- Recent Attempts Log Badges -->
+      <div id="recentAttemptsContainer" class="hidden p-2.5 bg-neutral-900/40 border border-neutral-800/60 rounded-xl">
+        <div class="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Recent Runs:</div>
+        <div id="recentAttemptsList" class="flex flex-wrap items-center gap-1.5"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- LEADERBOARD MODAL -->
+  <div id="leaderboardModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-lg w-full p-5 text-neutral-200 shadow-2xl flex flex-col max-h-[90vh]">
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-neutral-800">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">🏆</span>
+          <h3 class="text-lg font-black text-white uppercase tracking-wider">Hall of Precision</h3>
+        </div>
+        <button id="closeLeaderboardBtn" class="text-neutral-400 hover:text-white text-2xl font-bold leading-none">&times;</button>
+      </div>
+
+      <!-- Filter Tabs -->
+      <div class="flex items-center justify-between gap-1 py-3 border-b border-neutral-800/60">
+        <div class="flex items-center gap-1">
+          <button data-filter="all" class="lb-filter-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-red-600 text-white">All</button>
+          <button data-filter="3" class="lb-filter-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-neutral-800 text-neutral-400 hover:text-white">3s</button>
+          <button data-filter="5" class="lb-filter-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-neutral-800 text-neutral-400 hover:text-white">5s</button>
+          <button data-filter="10" class="lb-filter-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-neutral-800 text-neutral-400 hover:text-white">10s</button>
+        </div>
+        <button id="clearLeaderboardBtn" class="text-[11px] font-semibold text-rose-400 hover:text-rose-300 hover:underline">
+          Clear Data
+        </button>
+      </div>
+
+      <!-- Scrollable Leaderboard Table -->
+      <div class="flex-1 overflow-y-auto my-2 pr-1 divide-y divide-neutral-800/60">
+        <div id="leaderboardRowsContainer" class="flex flex-col gap-1.5 pt-1">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Footer Info -->
+      <div class="pt-3 border-t border-neutral-800 flex items-center justify-between text-xs text-neutral-400">
+        <span>Ranked by lowest absolute delta</span>
+        <button id="closeLeaderboardBtn2" class="px-4 py-1.5 text-xs font-bold rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REGISTRATION GATEWAY MODAL (FIRST SCREEN ON LOAD) -->
+  <div id="registrationModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-3xl max-w-md w-full p-6 sm:p-8 text-neutral-200 shadow-2xl relative overflow-hidden">
+      <!-- Glow ambient backdrop -->
+      <div class="absolute -top-14 -right-14 w-36 h-36 bg-red-600/20 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-14 -left-14 w-36 h-36 bg-amber-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="relative z-10">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center text-2xl shadow-lg shadow-red-600/30 mb-4">
+          ⏱️
+        </div>
+
+        <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">Player Registration</h2>
+        <p class="text-xs sm:text-sm text-neutral-400 mt-1 mb-6">
+          Enter your identity & enrollment number to record verified scores on the leaderboard.
+        </p>
+
+        <form id="registrationForm" class="space-y-4">
+          <div>
+            <label for="regFullName" class="block text-xs font-bold uppercase tracking-wider text-neutral-300 mb-1.5">
+              Full Name <span class="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="regFullName" 
+              required
+              maxlength="30"
+              placeholder="e.g. Alex Morgan" 
+              class="w-full bg-neutral-950 border border-neutral-700 focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 outline-none transition"
+            >
+          </div>
+
+          <div>
+            <label for="regEnrollmentNo" class="block text-xs font-bold uppercase tracking-wider text-neutral-300 mb-1.5">
+              Enrollment Number / ID <span class="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="regEnrollmentNo" 
+              required
+              maxlength="25"
+              placeholder="e.g. 21BCSE104" 
+              class="w-full bg-neutral-950 border border-neutral-700 focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono placeholder-neutral-500 outline-none transition"
+            >
+          </div>
+
+          <div id="regErrorMsg" class="hidden text-xs text-rose-400 font-semibold flex items-center gap-1.5 pt-1">
+            <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+            <span id="regErrorText">Please fill in both fields to proceed.</span>
+          </div>
+
+          <button 
+            type="submit" 
+            class="w-full mt-2 py-3 px-4 rounded-xl font-black text-sm uppercase tracking-wider bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-lg shadow-red-600/30 transition-all active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
+          >
+            <span>Enter Challenge</span>
+            <span>➔</span>
+          </button>
+        </form>
+
+        <p class="text-[11px] text-neutral-500 text-center mt-4">
+          Saved locally on your device. You can update or switch players anytime.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help / Instructions Modal -->
+  <div id="helpModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-md w-full p-6 text-neutral-200">
+      <div class="flex items-center justify-between pb-3 border-b border-neutral-800">
+        <h3 class="text-lg font-black text-white flex items-center gap-2">
+          <span>🎯</span> How to Play
+        </h3>
+        <button id="closeHelpBtn" class="text-neutral-400 hover:text-white text-xl font-bold leading-none">&times;</button>
+      </div>
+      <ol class="mt-4 space-y-3 text-sm list-decimal list-inside text-neutral-300">
+        <li>Pick a target time (Default: <strong class="text-white">5 seconds</strong>).</li>
+        <li>Press the <strong class="text-red-400">BIG RED BUZZER</strong> or hit <strong class="text-white">Spacebar</strong> to start the timer immediately (no countdown).</li>
+        <li>Watch the live timer tick and hit the buzzer again as close to the target as possible!</li>
+        <li>Check your precision down to the millisecond!</li>
+      </ol>
+      <div class="mt-6 flex justify-end">
+        <button id="closeHelpBtn2" class="px-5 py-2 text-xs font-bold rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Duration Modal -->
+  <div id="customModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-xs w-full p-6 text-neutral-200">
+      <h3 class="text-base font-bold text-white mb-2">Set Custom Target</h3>
+      <p class="text-xs text-neutral-400 mb-4">Choose duration in seconds (1 to 60s):</p>
+      <input type="number" id="customInput" min="1" max="60" value="7" step="1" class="w-full bg-neutral-950 border border-neutral-700 rounded-lg px-3 py-2 text-lg font-digital font-bold text-center text-white focus:outline-none focus:border-red-500 mb-4">
+      <div class="flex justify-end space-x-2">
+        <button id="cancelCustomBtn" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-neutral-800 text-neutral-300 hover:text-white">Cancel</button>
+        <button id="applyCustomBtn" class="px-4 py-1.5 text-xs font-bold rounded-lg bg-red-600 hover:bg-red-500 text-white">Set Target</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="w-full max-w-4xl mx-auto px-4 py-4 text-center text-neutral-400 text-xs flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-neutral-900">
+    <div>Rule: Keep your eyes on the buzzer, no watches or counting tools!</div>
+    <div class="text-[11px] text-neutral-400">Spacebar = Buzzer</div>
+  </footer>
+
+  <!-- JavaScript Logic -->
+  <script>
+    /* ==========================================================
+       Web Audio API Sound Engine (Synthesized Effects)
+       ========================================================== */
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            this.ctx = new AudioContext();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      // Short countdown beep (pitch changes on GO)
+      beep(freq = 440, duration = 0.08, type = 'sine') {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          
+          gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch(e) {
+          console.warn("Audio error:", e);
+        }
+      }
+
+      // Tactile Big Button Click
+      buzzerThud() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        try {
+          const now = this.ctx.currentTime;
+          // Sub-bass punch
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(160, now);
+          osc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
+
+          gain.gain.setValueAtTime(0.5, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start();
+          osc.stop(now + 0.16);
+
+          // Click snap
+          const clickOsc = this.ctx.createOscillator();
+          const clickGain = this.ctx.createGain();
+          clickOsc.type = 'square';
+          clickOsc.frequency.setValueAtTime(800, now);
+          clickOsc.frequency.exponentialRampToValueAtTime(100, now + 0.03);
+          clickGain.gain.setValueAtTime(0.2, now);
+          clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+          clickOsc.connect(clickGain);
+          clickGain.connect(this.ctx.destination);
+          clickOsc.start();
+          clickOsc.stop(now + 0.04);
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+
+      // Victory chime for near-perfect results
+      victoryFanfare() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        notes.forEach((freq, idx) => {
+          setTimeout(() => {
+            this.beep(freq, 0.25, 'triangle');
+          }, idx * 110);
+        });
+      }
+
+      // Standard pleasant rating sound
+      goodChime() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        this.beep(587.33, 0.12, 'sine'); // D5
+        setTimeout(() => this.beep(880.0, 0.22, 'sine'), 120); // A5
+      }
+
+      // Fail buzz for poor guesses
+      failBuzz() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(110, now);
+          osc.frequency.setValueAtTime(95, now + 0.15);
+
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start();
+          osc.stop(now + 0.36);
+        } catch(e) {
+          console.warn(e);
+        }
+      }
+    }
+
+    const audio = new SoundEngine();
+
+    /* ==========================================================
+       Game State & Controller
+       ========================================================== */
+    const GAME_STATES = {
+      IDLE: 'IDLE',
+      RUNNING: 'RUNNING',
+      STOPPED: 'STOPPED'
+    };
+
+    let currentState = GAME_STATES.IDLE;
+    let targetSeconds = 5.0;
+    let startTime = 0;
+    let stoppedTime = 0;
+    let attemptsHistory = [];
+    let lastResultData = null;
+    let currentFilter = 'all';
+
+    // Current Registered Player Profile
+    let activePlayer = null;
+
+    // Storage Keys
+    const STORAGE_KEY = 'blind_seconds_leaderboard_v2';
+    const USER_STORAGE_KEY = 'blind_seconds_registered_user_v1';
+
+    // Default Challenger entries with Enrollment Numbers
+    const DEFAULT_LEADERBOARD = [
+      { id: '1', name: 'Chronos', enrollment: '2023TIM01', target: 5.0, stopped: 5.008, delta: 0.008, absDelta: 0.008, date: 'Demo' },
+      { id: '2', name: 'MindMaster', enrollment: '2023PSY44', target: 5.0, stopped: 4.978, delta: -0.022, absDelta: 0.022, date: 'Demo' },
+      { id: '3', name: 'ZenGuru', enrollment: '2022ZEN89', target: 3.0, stopped: 3.031, delta: 0.031, absDelta: 0.031, date: 'Demo' },
+      { id: '4', name: 'ApexTimer', enrollment: '2024APX12', target: 10.0, stopped: 9.945, delta: -0.055, absDelta: 0.055, date: 'Demo' }
+    ];
+
+    // DOM Elements
+    const buzzerBtn = document.getElementById('buzzerButton');
+    const buzzerLabel = document.getElementById('buzzerLabel');
+    const buzzerHint = document.getElementById('buzzerHint');
+    const statusContainer = document.getElementById('statusContainer');
+    const statusTitle = document.getElementById('statusTitle');
+    const statusSub = document.getElementById('statusSub');
+    const idleVisual = document.getElementById('idleVisual');
+    const runningVisual = document.getElementById('runningVisual');
+    const resultModal = document.getElementById('resultModal');
+    const resultRatingBadge = document.getElementById('resultRatingBadge');
+    const resultRatingTitle = document.getElementById('resultRatingTitle');
+    const resultTargetVal = document.getElementById('resultTargetVal');
+    const resultActualTime = document.getElementById('resultActualTime');
+    const resultDelta = document.getElementById('resultDelta');
+    const resultGaugeMarker = document.getElementById('resultGaugeMarker');
+    const shareScoreBtn = document.getElementById('shareScoreBtn');
+    const shareBtnText = document.getElementById('shareBtnText');
+    const viewLeaderboardFromCard = document.getElementById('viewLeaderboardFromCard');
+    const resultPlayerTag = document.getElementById('resultPlayerTag');
+
+    // Registration Elements
+    const registrationModal = document.getElementById('registrationModal');
+    const registrationForm = document.getElementById('registrationForm');
+    const regFullName = document.getElementById('regFullName');
+    const regEnrollmentNo = document.getElementById('regEnrollmentNo');
+    const regErrorMsg = document.getElementById('regErrorMsg');
+    const regErrorText = document.getElementById('regErrorText');
+    const playerBadge = document.getElementById('playerBadge');
+    const badgePlayerName = document.getElementById('badgePlayerName');
+    const badgeEnrollment = document.getElementById('badgeEnrollment');
+    const switchUserBtn = document.getElementById('switchUserBtn');
+
+    // Leaderboard elements
+    const leaderboardBtn = document.getElementById('leaderboardBtn');
+    const leaderboardModal = document.getElementById('leaderboardModal');
+    const closeLeaderboardBtn = document.getElementById('closeLeaderboardBtn');
+    const closeLeaderboardBtn2 = document.getElementById('closeLeaderboardBtn2');
+    const leaderboardRowsContainer = document.getElementById('leaderboardRowsContainer');
+    const clearLeaderboardBtn = document.getElementById('clearLeaderboardBtn');
+    const lbFilterBtns = document.querySelectorAll('.lb-filter-btn');
+
+    const statBestScore = document.getElementById('statBestScore');
+    const statRounds = document.getElementById('statRounds');
+    const statAvgDelta = document.getElementById('statAvgDelta');
+    const recentAttemptsContainer = document.getElementById('recentAttemptsContainer');
+    const recentAttemptsList = document.getElementById('recentAttemptsList');
+    const headerTargetNum = document.getElementById('headerTargetNum');
+    const targetBtns = document.querySelectorAll('.target-btn');
+    const targetSelectorContainer = document.getElementById('targetSelectorContainer');
+    const soundToggleBtn = document.getElementById('soundToggleBtn');
+    const soundOnIcon = document.getElementById('soundOnIcon');
+    const soundOffIcon = document.getElementById('soundOffIcon');
+    const soundText = document.getElementById('soundText');
+
+    // Modals
+    const helpBtn = document.getElementById('helpBtn');
+    const helpModal = document.getElementById('helpModal');
+    const closeHelpBtn = document.getElementById('closeHelpBtn');
+    const closeHelpBtn2 = document.getElementById('closeHelpBtn2');
+    const customTargetBtn = document.getElementById('customTargetBtn');
+    const customModal = document.getElementById('customModal');
+    const customInput = document.getElementById('customInput');
+    const cancelCustomBtn = document.getElementById('cancelCustomBtn');
+    const applyCustomBtn = document.getElementById('applyCustomBtn');
+
+    /* ==========================================================
+       User Profile & Registration Gate
+       ========================================================== */
+    function checkUserRegistration() {
+      try {
+        const storedUser = localStorage.getItem(USER_STORAGE_KEY);
+        if (storedUser) {
+          activePlayer = JSON.parse(storedUser);
+          updatePlayerUI();
+          registrationModal.classList.add('hidden');
+        } else {
+          showRegistrationModal();
+        }
+      } catch (e) {
+        showRegistrationModal();
+      }
+    }
+
+    function showRegistrationModal(prefill = false) {
+      if (prefill && activePlayer) {
+        regFullName.value = activePlayer.name || '';
+        regEnrollmentNo.value = activePlayer.enrollment || '';
+      } else {
+        regFullName.value = '';
+        regEnrollmentNo.value = '';
+      }
+      regErrorMsg.classList.add('hidden');
+      registrationModal.classList.remove('hidden');
+      setTimeout(() => regFullName.focus(), 100);
+    }
+
+    function updatePlayerUI() {
+      if (!activePlayer) return;
+      badgePlayerName.textContent = activePlayer.name;
+      badgeEnrollment.textContent = `#${activePlayer.enrollment}`;
+      playerBadge.classList.remove('hidden');
+      playerBadge.classList.add('flex');
+      if (resultPlayerTag) {
+        resultPlayerTag.textContent = `${activePlayer.name} (${activePlayer.enrollment})`;
+      }
+    }
+
+    registrationForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = regFullName.value.trim();
+      const enrollment = regEnrollmentNo.value.trim().toUpperCase();
+
+      if (!name || !enrollment) {
+        regErrorText.textContent = 'Both Name and Enrollment Number are required.';
+        regErrorMsg.classList.remove('hidden');
+        return;
+      }
+
+      activePlayer = { name, enrollment };
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(activePlayer));
+      updatePlayerUI();
+      registrationModal.classList.add('hidden');
+      audio.init();
+      audio.goodChime();
+    });
+
+    switchUserBtn.addEventListener('click', () => {
+      showRegistrationModal(true);
+    });
+
+    /* ==========================================================
+       Leaderboard System (LocalStorage)
+       ========================================================== */
+    function getLeaderboard() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (!stored) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_LEADERBOARD));
+          return [...DEFAULT_LEADERBOARD];
+        }
+        return JSON.parse(stored);
+      } catch (e) {
+        return [...DEFAULT_LEADERBOARD];
+      }
+    }
+
+    function saveLeaderboard(data) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {
+        console.warn('Could not save to localStorage', e);
+      }
+    }
+
+    function renderLeaderboard() {
+      const records = getLeaderboard();
+      const filtered = currentFilter === 'all' 
+        ? records 
+        : records.filter(r => Math.abs(r.target - parseFloat(currentFilter)) < 0.01);
+
+      // Sort by absolute delta ascending (closest to 0.0s is #1)
+      filtered.sort((a, b) => a.absDelta - b.absDelta);
+
+      leaderboardRowsContainer.innerHTML = '';
+
+      if (filtered.length === 0) {
+        leaderboardRowsContainer.innerHTML = `
+          <div class="text-center py-8 text-neutral-500 text-xs">
+            No records found for this target. Play a round and save your score!
+          </div>
+        `;
+        return;
+      }
+
+      filtered.forEach((entry, index) => {
+        const rank = index + 1;
+        let rankBadge = `<span class="w-6 text-center font-bold text-neutral-500 text-xs">#${rank}</span>`;
+        if (rank === 1) rankBadge = `<span class="w-6 text-center text-sm">🥇</span>`;
+        if (rank === 2) rankBadge = `<span class="w-6 text-center text-sm">🥈</span>`;
+        if (rank === 3) rankBadge = `<span class="w-6 text-center text-sm">🥉</span>`;
+
+        const sign = entry.delta >= 0 ? '+' : '';
+        const deltaFormatted = `${sign}${entry.delta.toFixed(3)}s`;
+        const deltaColor = entry.absDelta <= 0.05 
+          ? 'text-amber-400 font-extrabold' 
+          : entry.absDelta <= 0.15 
+          ? 'text-emerald-400 font-bold' 
+          : 'text-neutral-300';
+
+        const row = document.createElement('div');
+        row.className = "flex items-center justify-between p-2 rounded-xl bg-neutral-950/60 border border-neutral-800/60 hover:border-neutral-700 transition";
+        row.innerHTML = `
+          <div class="flex items-center space-x-2.5">
+            ${rankBadge}
+            <div>
+              <div class="text-xs font-bold text-white flex items-center gap-1.5 flex-wrap">
+                <span>${escapeHtml(entry.name)}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-amber-300 font-digital font-semibold tracking-wide">ID: ${escapeHtml(entry.enrollment || 'N/A')}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-700 text-neutral-400 font-digital">${entry.target.toFixed(1)}s target</span>
+              </div>
+              <div class="text-[10px] text-neutral-400 font-mono mt-0.5">Stopped: ${entry.stopped.toFixed(3)}s</div>
+            </div>
+          </div>
+          <div class="text-right ml-2 shrink-0">
+            <div class="text-xs font-digital ${deltaColor}">${deltaFormatted}</div>
+            <div class="text-[9px] text-neutral-400 uppercase">${entry.date || 'Recent'}</div>
+          </div>
+        `;
+        leaderboardRowsContainer.appendChild(row);
+      });
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+      return String(text).replace(/[&<>"']/g, m => map[m]);
+    }
+
+    lbFilterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        lbFilterBtns.forEach(b => {
+          b.classList.remove('bg-red-600', 'text-white');
+          b.classList.add('bg-neutral-800', 'text-neutral-400');
+        });
+        btn.classList.add('bg-red-600', 'text-white');
+        btn.classList.remove('bg-neutral-800', 'text-neutral-400');
+        currentFilter = btn.dataset.filter;
+        renderLeaderboard();
+      });
+    });
+
+    leaderboardBtn.addEventListener('click', () => {
+      renderLeaderboard();
+      leaderboardModal.classList.remove('hidden');
+    });
+
+    closeLeaderboardBtn.addEventListener('click', () => leaderboardModal.classList.add('hidden'));
+    closeLeaderboardBtn2.addEventListener('click', () => leaderboardModal.classList.add('hidden'));
+    leaderboardModal.addEventListener('click', (e) => {
+      if (e.target === leaderboardModal) leaderboardModal.classList.add('hidden');
+    });
+
+    clearLeaderboardBtn.addEventListener('click', () => {
+      if (confirm("Reset and clear leaderboard scores back to default?")) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_LEADERBOARD));
+        renderLeaderboard();
+      }
+    });
+
+    // View leaderboard directly from card button
+    if (viewLeaderboardFromCard) {
+      viewLeaderboardFromCard.addEventListener('click', () => {
+        renderLeaderboard();
+        leaderboardModal.classList.remove('hidden');
+      });
+    }
+
+    function autoSaveAttemptToLeaderboard(resultData) {
+      if (!resultData) return;
+      if (!activePlayer) {
+        showRegistrationModal();
+        return;
+      }
+
+      const records = getLeaderboard();
+      const newEntry = {
+        id: Date.now().toString(),
+        name: activePlayer.name,
+        enrollment: activePlayer.enrollment,
+        target: resultData.target,
+        stopped: resultData.stopped,
+        delta: resultData.delta,
+        absDelta: resultData.absDelta,
+        date: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      };
+
+      records.push(newEntry);
+      saveLeaderboard(records);
+    }
+
+    /* ==========================================================
+       Sound Toggle Handling
+       ========================================================== */
+    soundToggleBtn.addEventListener('click', () => {
+      audio.init();
+      audio.muted = !audio.muted;
+      if (audio.muted) {
+        soundOnIcon.classList.add('hidden');
+        soundOffIcon.classList.remove('hidden');
+        soundText.textContent = 'Muted';
+      } else {
+        soundOnIcon.classList.remove('hidden');
+        soundOffIcon.classList.add('hidden');
+        soundText.textContent = 'Sound ON';
+        audio.beep(600, 0.05);
+      }
+    });
+
+    /* ==========================================================
+       Target Duration Selector Handling
+       ========================================================== */
+    function setTarget(seconds) {
+      if (currentState !== GAME_STATES.IDLE && currentState !== GAME_STATES.STOPPED) return;
+      targetSeconds = parseFloat(seconds);
+      headerTargetNum.textContent = targetSeconds % 1 === 0 ? targetSeconds.toFixed(0) : targetSeconds.toFixed(1);
+      
+      // Update quick buttons UI
+      targetBtns.forEach(btn => {
+        const val = parseFloat(btn.dataset.target);
+        if (val === targetSeconds) {
+          btn.classList.add('bg-red-600', 'text-white', 'shadow-md', 'shadow-red-600/30');
+          btn.classList.remove('text-neutral-400');
+        } else {
+          btn.classList.remove('bg-red-600', 'text-white', 'shadow-md', 'shadow-red-600/30');
+          btn.classList.add('text-neutral-400');
+        }
+      });
+
+      if (![3, 5, 10].includes(targetSeconds)) {
+        customTargetBtn.textContent = `${targetSeconds}s`;
+        customTargetBtn.classList.add('bg-red-600', 'text-white', 'shadow-md', 'shadow-red-600/30');
+        customTargetBtn.classList.remove('text-neutral-400');
+      } else {
+        customTargetBtn.textContent = 'Custom';
+        customTargetBtn.classList.remove('bg-red-600', 'text-white', 'shadow-md', 'shadow-red-600/30');
+        customTargetBtn.classList.add('text-neutral-400');
+      }
+
+      resetToIdle();
+    }
+
+    targetBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        setTarget(btn.dataset.target);
+      });
+    });
+
+    customTargetBtn.addEventListener('click', () => {
+      customInput.value = targetSeconds;
+      customModal.classList.remove('hidden');
+      setTimeout(() => customInput.focus(), 50);
+    });
+
+    cancelCustomBtn.addEventListener('click', () => {
+      customModal.classList.add('hidden');
+    });
+
+    applyCustomBtn.addEventListener('click', () => {
+      const val = parseFloat(customInput.value);
+      if (val && val >= 1 && val <= 60) {
+        setTarget(val);
+        customModal.classList.add('hidden');
+      }
+    });
+
+    /* ==========================================================
+       Game Flow & Timing Logic
+       ========================================================== */
+    function resetToIdle() {
+      currentState = GAME_STATES.IDLE;
+      buzzerLabel.textContent = "START";
+      buzzerHint.textContent = "[ SPACEBAR ]";
+      buzzerBtn.classList.remove('glow-pulse');
+      targetSelectorContainer.classList.remove('opacity-30', 'pointer-events-none');
+      
+      statusContainer.classList.remove('hidden');
+      statusSub.textContent = `TARGET: ${targetSeconds.toFixed(1)} SECONDS`;
+      statusTitle.textContent = "Press Buzzer To Start";
+      
+      // Hide running visualizer, show idle pill
+      idleVisual.classList.remove('hidden');
+      runningVisual.classList.add('hidden');
+      
+      resultModal.classList.add('hidden');
+      resultModal.classList.add('scale-95');
+    }
+
+    function startTimerImmediately() {
+      audio.init();
+      audio.buzzerThud();
+
+      currentState = GAME_STATES.RUNNING;
+      startTime = performance.now();
+      targetSelectorContainer.classList.add('opacity-30', 'pointer-events-none');
+      resultModal.classList.add('hidden');
+      statusContainer.classList.remove('hidden');
+
+      // Switch to blind sensory visualization (no numeric time revealed!)
+      idleVisual.classList.add('hidden');
+      runningVisual.classList.remove('hidden');
+
+      buzzerLabel.textContent = "STOP!";
+      buzzerHint.textContent = "HIT AT TARGET";
+      buzzerBtn.classList.add('glow-pulse');
+
+      statusSub.textContent = `BLIND CHALLENGE ACTIVE`;
+      statusTitle.innerHTML = `Ticking in your mind... <span class="text-rose-400 font-black">Hit at ${targetSeconds.toFixed(1)}s!</span>`;
+    }
+
+    function stopTimer() {
+      stoppedTime = performance.now();
+      audio.buzzerThud();
+      currentState = GAME_STATES.STOPPED;
+      buzzerBtn.classList.remove('glow-pulse');
+      buzzerLabel.textContent = "RETRY";
+      buzzerHint.textContent = "[ SPACEBAR ]";
+      targetSelectorContainer.classList.remove('opacity-30', 'pointer-events-none');
+
+      // Hide sensory and idle during result display
+      runningVisual.classList.add('hidden');
+      idleVisual.classList.add('hidden');
+      statusContainer.classList.add('hidden');
+
+      const elapsedMs = stoppedTime - startTime;
+      const elapsedSec = elapsedMs / 1000;
+      const deltaSec = elapsedSec - targetSeconds;
+      const absDelta = Math.abs(deltaSec);
+
+      lastResultData = {
+        target: targetSeconds,
+        stopped: elapsedSec,
+        delta: deltaSec,
+        absDelta: absDelta
+      };
+
+      if (activePlayer && resultPlayerTag) {
+        resultPlayerTag.textContent = `${activePlayer.name} (${activePlayer.enrollment})`;
+      }
+
+      // Automatically save to leaderboard immediately
+      autoSaveAttemptToLeaderboard(lastResultData);
+
+      displayResults(elapsedSec, deltaSec, absDelta);
+      updateStatistics(absDelta, deltaSec, elapsedSec);
+    }
+
+    /* ==========================================================
+       Result Evaluation & Gauge
+       ========================================================== */
+    function displayResults(actualSec, deltaSec, absDelta) {
+      resultTargetVal.textContent = `${targetSeconds.toFixed(3)}s`;
+      resultActualTime.textContent = `${actualSec.toFixed(3)}s`;
+
+      const sign = deltaSec >= 0 ? '+' : '';
+      resultDelta.textContent = `${sign}${deltaSec.toFixed(3)}s`;
+
+      // Determine feedback tiers
+      let badgeText = "";
+      let titleText = "";
+      let badgeClass = "";
+      let deltaColor = "text-emerald-400";
+
+      if (absDelta <= 0.05) {
+        badgeText = "🏆 GOD TIER • TIME LORD";
+        titleText = "Superhuman Precision!";
+        badgeClass = "bg-amber-400/20 text-amber-300 border-amber-400/40";
+        deltaColor = "text-amber-300";
+        triggerGoldConfetti();
+        audio.victoryFanfare();
+      } else if (absDelta <= 0.15) {
+        badgeText = "⚡ SHARPSHOOTER";
+        titleText = "Incredible Internal Clock!";
+        badgeClass = "bg-emerald-500/20 text-emerald-400 border-emerald-500/40";
+        deltaColor = "text-emerald-400";
+        triggerNormalConfetti();
+        audio.goodChime();
+      } else if (absDelta <= 0.40) {
+        badgeText = "🎯 GREAT REFLEXES";
+        titleText = "Very sharp sense of time.";
+        badgeClass = "bg-sky-500/20 text-sky-400 border-sky-500/40";
+        deltaColor = "text-sky-400";
+        audio.goodChime();
+      } else if (absDelta <= 0.80) {
+        badgeText = "👌 ALMOST";
+        titleText = "Close, but a bit of drift.";
+        badgeClass = "bg-indigo-500/20 text-indigo-400 border-indigo-500/40";
+        deltaColor = "text-indigo-400";
+        audio.beep(400, 0.15);
+      } else {
+        const isEarly = deltaSec < 0;
+        badgeText = isEarly ? "⏱️ TOO EARLY" : "⏱️ TOO LATE";
+        titleText = isEarly ? "You rushed the buzzer!" : "You waited too long!";
+        badgeClass = "bg-rose-500/20 text-rose-400 border-rose-500/40";
+        deltaColor = "text-rose-400";
+        audio.failBuzz();
+      }
+
+      resultRatingBadge.textContent = badgeText;
+      resultRatingBadge.className = `inline-block px-3 py-0.5 rounded-full text-xs font-extrabold uppercase tracking-wider border ${badgeClass}`;
+      resultRatingTitle.textContent = titleText;
+      resultDelta.className = `text-2xl sm:text-3xl font-black font-digital mt-0.5 ${deltaColor}`;
+
+      // Gauge positioning (Center = 50% for 0.0s delta, Clamped to +/- 1.0 second span)
+      const clampedDelta = Math.max(-1.0, Math.min(1.0, deltaSec));
+      const gaugePercent = ((clampedDelta + 1.0) / 2.0) * 100;
+      resultGaugeMarker.style.left = `${gaugePercent}%`;
+
+      // Show result card right ABOVE the buzzer
+      resultModal.classList.remove('hidden');
+      setTimeout(() => {
+        resultModal.classList.remove('scale-95');
+      }, 10);
+    }
+
+    /* ==========================================================
+       Stats Tracker & Recent Attempts Log
+       ========================================================== */
+    function updateStatistics(absDelta, deltaSec, elapsedSec) {
+      attemptsHistory.push(absDelta);
+      const totalRounds = attemptsHistory.length;
+      const best = Math.min(...attemptsHistory);
+      const sum = attemptsHistory.reduce((a, b) => a + b, 0);
+      const avg = sum / totalRounds;
+
+      statRounds.textContent = totalRounds;
+      statBestScore.textContent = `±${best.toFixed(3)}s`;
+      statAvgDelta.textContent = `±${avg.toFixed(3)}s`;
+
+      // Render recent attempts strip (last 5)
+      recentAttemptsContainer.classList.remove('hidden');
+      const badge = document.createElement('span');
+      const sign = deltaSec >= 0 ? '+' : '';
+      const badgeStyle = absDelta <= 0.15 
+        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
+        : absDelta <= 0.40 
+        ? 'bg-sky-500/20 text-sky-400 border-sky-500/40' 
+        : 'bg-neutral-800 text-neutral-300 border-neutral-700';
+      badge.className = `px-2 py-0.5 rounded-md font-digital text-xs font-bold border ${badgeStyle}`;
+      badge.textContent = `${sign}${deltaSec.toFixed(3)}s`;
+
+      if (recentAttemptsList.children.length >= 6) {
+        recentAttemptsList.removeChild(recentAttemptsList.firstChild);
+      }
+      recentAttemptsList.appendChild(badge);
+    }
+
+    /* ==========================================================
+       Confetti Effects
+       ========================================================== */
+    function triggerGoldConfetti() {
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#f59e0b', '#fbbf24', '#fef08a', '#ffffff', '#ef4444']
+        });
+      }
+    }
+
+    function triggerNormalConfetti() {
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 50,
+          spread: 60,
+          origin: { y: 0.6 },
+          colors: ['#10b981', '#34d399', '#38bdf8', '#ef4444']
+        });
+      }
+    }
+
+    /* ==========================================================
+       Button Press & Spacebar Handling
+       ========================================================== */
+    function handleBuzzerTrigger() {
+      // Tactile button depression animation
+      buzzerBtn.classList.add('pressed');
+      setTimeout(() => buzzerBtn.classList.remove('pressed'), 120);
+
+      if (currentState === GAME_STATES.IDLE || currentState === GAME_STATES.STOPPED) {
+        startTimerImmediately();
+      } else if (currentState === GAME_STATES.RUNNING) {
+        stopTimer();
+      }
+    }
+
+    buzzerBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleBuzzerTrigger();
+    });
+
+    // Spacebar listener
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        // Prevent page scrolling on space
+        e.preventDefault();
+        // Ignore if any modal is focused on input
+        if (
+          document.activeElement === customInput || 
+          document.activeElement === regFullName || 
+          document.activeElement === regEnrollmentNo
+        ) return;
+        if (!registrationModal.classList.contains('hidden')) return;
+        handleBuzzerTrigger();
+      }
+    });
+
+    /* ==========================================================
+       Copy / Share Functionality
+       ========================================================== */
+    shareScoreBtn.addEventListener('click', () => {
+      const actual = resultActualTime.textContent;
+      const delta = resultDelta.textContent;
+      const playerInfo = activePlayer ? `Player: ${activePlayer.name} [${activePlayer.enrollment}]\n` : '';
+      const textToCopy = `⏱️ Blind ${targetSeconds}s Challenge\n${playerInfo}Target: ${targetSeconds}s\nStopped: ${actual}\nDelta: ${delta}\n${resultRatingBadge.textContent}`;
+
+      try {
+        const tempTextArea = document.createElement('textarea');
+        tempTextArea.value = textToCopy;
+        document.body.appendChild(tempTextArea);
+        tempTextArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempTextArea);
+
+        shareBtnText.textContent = 'Copied!';
+        setTimeout(() => {
+          shareBtnText.textContent = 'Share';
+        }, 1800);
+      } catch (err) {
+        console.error('Unable to copy', err);
+      }
+    });
+
+    /* ==========================================================
+       Help Modal Handling
+       ========================================================== */
+    helpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
+    closeHelpBtn.addEventListener('click', () => helpModal.classList.add('hidden'));
+    closeHelpBtn2.addEventListener('click', () => helpModal.classList.add('hidden'));
+    helpModal.addEventListener('click', (e) => {
+      if (e.target === helpModal) helpModal.classList.add('hidden');
+    });
+
+    // Initialize initial idle screen & verify user registration on page load
+    window.onload = function() {
+      resetToIdle();
+      checkUserRegistration();
+    };
+  </script>
+</body>
+</html>
