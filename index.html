@@ -659,7 +659,7 @@
     const STORAGE_KEY = 'blind_seconds_leaderboard_shared_v1';
     const PENDING_STORAGE_KEY = 'blind_seconds_pending_scores_v1';
     const RECENT_STORAGE_KEY = 'blind_seconds_recent_scores_v1';
-    const RECENT_SCORE_WINDOW_MS = 10 * 60 * 1000;
+    const RECENT_SCORE_WINDOW_MS = 24 * 60 * 60 * 1000;
     const USER_STORAGE_KEY = 'blind_seconds_registered_user_v1';
 
     // Shared leaderboard API (Vercel serverless function)
@@ -842,8 +842,8 @@
       saveLeaderboard([...readStoredList(STORAGE_KEY), data.entry]);
     }
 
-    // The shared board can lag a little behind writes, so keep this device's
-    // recently saved scores visible until the server copy includes them.
+    // The board can lag behind writes (and shows a snapshot while the owner's PC
+    // is off), so keep this device's recent scores visible until it includes them.
     function mergeRecentScores(serverEntries) {
       const serverIds = new Set(serverEntries.map(e => e.id));
       const recent = readStoredList(RECENT_STORAGE_KEY)
@@ -882,7 +882,11 @@
         if (!res.ok) throw new Error(`Load failed (${res.status})`);
         const data = await res.json();
         saveLeaderboard(mergeRecentScores(data.entries));
-        setLeaderboardStatus('● Live · All players', 'text-emerald-400');
+        if (data.source === 'snapshot') {
+          setLeaderboardStatus('Last saved board', 'text-amber-400');
+        } else {
+          setLeaderboardStatus('● Live · All players', 'text-emerald-400');
+        }
       } catch (e) {
         console.warn('Could not reach shared leaderboard', e);
         setLeaderboardStatus('Offline · Saved copy', 'text-rose-400');

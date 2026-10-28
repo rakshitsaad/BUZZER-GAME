@@ -1,77 +1,51 @@
-import { list, put } from '@vercel/blob';
+import { get, put } from '@vercel/blob';
+import { buildEntry, encodeEntry, PC_URL_PATH, SCORES_PREFIX, SNAPSHOT_PATH } from '../lib/scores-core.js';
 
-// Shared leaderboard for every player, stored in Vercel Blob.
-// Each score is its own blob with the score encoded in the pathname, so saves
-// never conflict and the board is read with a single list call.
-const SCORES_PREFIX = 'scores/';
-const MAX_ENTRIES_PER_TARGET = 300;
+// Shared leaderboard for every player.
+// The owner's PC (scripts/pc-storage.mjs, reached through a Cloudflare tunnel) is the
+// main storage. While it is unreachable, scores go to Vercel Blob one blob per score,
+// and players see the last board snapshot the PC uploaded. The PC imports those
+// scores when it comes back. This keeps Blob usage well inside the free plan.
+const PC_TIMEOUT_MS = 4000;
+const PC_URL_CACHE_MS = 30_000;
 
-function encodeEntry(entry) {
-  const packed = [entry.id, entry.name, entry.enrollment, entry.target, entry.stopped, entry.ts];
-  return Buffer.from(JSON.stringify(packed)).toString('base64url');
+let cachedPcUrl = null;
+let cachedPcUrlAt = 0;
+
+async function readBlobJson(pathname) {
+  const result = await get(pathname, { access: 'public' });
+  if (!result || result.statusCode !== 200) return null;
+  return JSON.parse(await new Response(result.stream).text());
 }
 
-export function decodeEntry(pathname) {
+async function getPcUrl() {
+  if (Date.now() - cachedPcUrlAt > PC_URL_CACHE_MS) {
+    cachedPcUrl = (await readBlobJson(PC_URL_PATH).catch(() => null))?.url || null;
+    cachedPcUrlAt = Date.now();
+  }
+  return cachedPcUrl;
+}
+
+// Returns the PC's JSON response, or null if the PC is off or unreachable.
+async function callPc(method, body) {
+  const pcUrl = await getPcUrl();
+  const secret = process.env.PC_SHARED_SECRET;
+  if (!pcUrl || !secret) return null;
   try {
-    const encoded = pathname.slice(SCORES_PREFIX.length).replace(/\.json$/, '');
-    const [id, name, enrollment, target, stopped, ts] = JSON.parse(Buffer.from(encoded, 'base64url').toString());
-    const delta = Math.round((stopped - target) * 1000) / 1000;
-    return { id, name, enrollment, target, stopped, delta, absDelta: Math.abs(delta), ts };
-  } catch {
+    const res = await fetch(`${pcUrl}/scores`, {
+      method,
+      headers: { 'Content-Type': 'application/json', 'x-pc-secret': secret },
+      body: body && JSON.stringify(body),
+      signal: AbortSignal.timeout(PC_TIMEOUT_MS)
+    });
+    if (res.status === 400) return { invalid: true };
+    if (!res.ok) throw new Error(`PC responded ${res.status}`);
+    return await res.json();
+  } catch (error) {
+    console.warn('PC storage unreachable', error.message);
+    cachedPcUrlAt = 0; // re-read the address next time in case the tunnel restarted
     return null;
   }
-}
-
-async function readBoard() {
-  const entries = [];
-  let cursor;
-  do {
-    const page = await list({ prefix: SCORES_PREFIX, limit: 1000, cursor });
-    for (const blob of page.blobs) {
-      const entry = decodeEntry(blob.pathname);
-      if (entry) entries.push(entry);
-    }
-    cursor = page.hasMore ? page.cursor : undefined;
-  } while (cursor);
-  return trimBoard(entries);
-}
-
-function cleanText(value, maxLength) {
-  return String(value ?? '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, maxLength);
-}
-
-function buildEntry(body) {
-  const name = cleanText(body.name, 40);
-  const enrollment = cleanText(body.enrollment, 30);
-  const target = Number(body.target);
-  const stopped = Number(body.stopped);
-
-  if (!name || !enrollment) return null;
-  if (!Number.isFinite(target) || target < 1 || target > 60) return null;
-  if (!Number.isFinite(stopped) || stopped <= 0 || stopped > target * 5) return null;
-
-  const ts = Date.now();
-  return decodeEntry(SCORES_PREFIX + encodeEntry({
-    id: `${ts}-${Math.random().toString(36).slice(2, 8)}`,
-    name,
-    enrollment,
-    target: Math.round(target * 10) / 10,
-    stopped: Math.round(stopped * 1000) / 1000,
-    ts
-  }));
-}
-
-// Return only the best results for each target so the response stays small.
-function trimBoard(entries) {
-  const byTarget = new Map();
-  for (const entry of entries) {
-    const list = byTarget.get(entry.target) || [];
-    list.push(entry);
-    byTarget.set(entry.target, list);
-  }
-  return [...byTarget.values()].flatMap(list =>
-    list.sort((a, b) => a.absDelta - b.absDelta).slice(0, MAX_ENTRIES_PER_TARGET)
-  );
 }
 
 function json(data, status = 200, headers = {}) {
@@ -82,9 +56,13 @@ function json(data, status = 200, headers = {}) {
 }
 
 export async function GET() {
+  const fromPc = await callPc('GET');
+  if (fromPc?.entries) {
+    return json({ entries: fromPc.entries, source: 'pc' }, 200, { 'Cache-Control': 'public, s-maxage=5, stale-while-revalidate=10' });
+  }
   try {
-    const entries = await readBoard();
-    return json({ entries }, 200, { 'Cache-Control': 'public, s-maxage=5, stale-while-revalidate=10' });
+    const snapshot = (await readBlobJson(SNAPSHOT_PATH)) || [];
+    return json({ entries: snapshot, source: 'snapshot' }, 200, { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' });
   } catch (error) {
     console.error('Leaderboard read failed', error);
     return json({ error: 'Could not load leaderboard' }, 500);
@@ -102,13 +80,17 @@ export async function POST(request) {
   const entry = buildEntry(body || {});
   if (!entry) return json({ error: 'Invalid score' }, 400);
 
+  const fromPc = await callPc('POST', body);
+  if (fromPc?.invalid) return json({ error: 'Invalid score' }, 400);
+  if (fromPc?.entry) return json({ entry: fromPc.entry, source: 'pc' }, 201);
+
   try {
     await put(`${SCORES_PREFIX}${encodeEntry(entry)}.json`, '{}', {
       access: 'public',
       contentType: 'application/json',
       addRandomSuffix: false
     });
-    return json({ entry }, 201);
+    return json({ entry, source: 'vercel' }, 201);
   } catch (error) {
     console.error('Leaderboard write failed', error);
     return json({ error: 'Could not save score' }, 500);
