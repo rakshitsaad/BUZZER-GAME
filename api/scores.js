@@ -11,7 +11,7 @@ function encodeEntry(entry) {
   return Buffer.from(JSON.stringify(packed)).toString('base64url');
 }
 
-function decodeEntry(pathname) {
+export function decodeEntry(pathname) {
   try {
     const encoded = pathname.slice(SCORES_PREFIX.length).replace(/\.json$/, '');
     const [id, name, enrollment, target, stopped, ts] = JSON.parse(Buffer.from(encoded, 'base64url').toString());
